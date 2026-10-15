@@ -1,6 +1,7 @@
 """Build the final report from a saved run: uv run python report.py <run_file>"""
 
 import json
+import re
 import sys
 
 from run_output import get_final_output
@@ -20,6 +21,10 @@ BANNED_PHRASES = (
     "the verdict",
 )
 
+# Single words banned on word boundaries. true, false, confirmed and proven are left out on
+# purpose: they appear in innocent prose ("unconfirmed", "not yet proven"), so only the phrases above catch them.
+BANNED_WORDS = re.compile(r"\b(myth|debunked|verdict|fact-check)\b", re.IGNORECASE)
+
 FALLBACK_SUMMARY = (
     "A summary could not be shown. See the verified and flagged statements and what the sources were silent on below."
 )
@@ -34,7 +39,7 @@ LIMITATIONS = [
 def phrase_guardrail(text: str) -> tuple[str, bool]:
     """Return (text, withheld). Case-insensitive substring match on banned multi-word phrases only."""
     lowered = text.lower()
-    if any(phrase in lowered for phrase in BANNED_PHRASES):
+    if any(phrase in lowered for phrase in BANNED_PHRASES) or BANNED_WORDS.search(text):
         return FALLBACK_SUMMARY, True
     return text, False
 
