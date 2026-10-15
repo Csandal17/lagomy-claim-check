@@ -7,8 +7,8 @@
   },
   "nhs_domain": "www.nhs.uk",
   "versions": {
-    "researcher": 2,
+    "researcher": 4,
     "verifier": 2,
-    "coordinator": 2
+    "coordinator": 4
   }
 }

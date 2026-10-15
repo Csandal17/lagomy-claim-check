@@ -18,3 +18,4 @@ Prototype that checks a published supplement claim against UK sources, built on 
 - No agent gets bash or file tools: every toolset uses `default_config: {"enabled": false}` and turns on only the web tools it needs, each restricted with `allowed_domains`.
 - Update agents in place by ID; don't create new ones.
 - Give every test session a budget (`max_list_cost` in whole US cents as a string).
+- Keep each evidence `source_url` exactly as returned by the fetch, even across a redirect or canonical change. Never substitute the redirect target or canonical URL; it must match a URL the agent actually fetched.

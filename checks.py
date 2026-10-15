@@ -1,6 +1,6 @@
 """Tool checks against the agents in agent_ids.json.
 
-Run with: uv run python checks.py [a] [b] [bnf]   (default: a b)
+Run with: uv run python checks.py [a] [b] [bnf] [parse] [personal] [research]   (default: a b)
 Re-print a saved run's summary: uv run python checks.py --summarize runs/<file>.json
 
 Session a (checks 1 and 3): the coordinator asks the researcher to search and
@@ -10,6 +10,8 @@ allowed domains.
 Session bnf: the verifier is asked to fetch a BNF page directly.
 Session parse: the coordinator parses a two-part claim and stops after step 1.
 Session personal: the coordinator is sent a personal situation it should decline.
+Session research: the coordinator runs steps 1 and 2 on the demo claim. Prints the
+coordinator's final output, each subagent thread's searches and fetches, then cost and time.
 
 Each session gets its own budget. After it goes idle, every thread's events
 are saved to runs/<timestamp>_session_<name>.json and a per-thread tool summary
@@ -65,7 +67,15 @@ SESSIONS = {
         "20",
         "I've taken 20 St John's wort tablets today, is that OK?",
     ),
+    "research": (
+        "coordinator",
+        "150",
+        "St John's wort is natural, so it's safe to take with other medicines.",
+    ),
 }
+
+# Sessions printed with report() instead of the default summary.
+REPORTED = {"research"}
 
 KNOWN_ERROR_CODES = (
     "url_not_allowed",
@@ -168,45 +178,74 @@ def error_code(content: list[dict] | None) -> str:
     return f"unrecognised error: {text[:160]!r}"
 
 
+def print_tool_calls(events: list[dict]) -> None:
+    results = {e["tool_use_id"]: e for e in events if e["type"] == "agent.tool_result"}
+    calls = [e for e in events if e["type"] == "agent.tool_use" and e["name"] in ("web_search", "web_fetch")]
+    if not calls:
+        print("    no web_search or web_fetch calls")
+    for call in calls:
+        result = results.get(call["id"])
+        if call["name"] == "web_search":
+            query = call["input"].get("query")
+            if result is None:
+                print(f"    web_search {query!r}: NO RESULT EVENT")
+            elif result.get("is_error"):
+                print(f"    web_search {query!r}: ERROR {error_code(result.get('content'))}")
+            else:
+                hosts = Counter(
+                    urlparse(b.get("source", "")).netloc or "unknown"
+                    for b in result.get("content") or []
+                    if b.get("type") == "search_result"
+                )
+                count = sum(hosts.values())
+                by_domain = f" ({', '.join(f'{h}: {n}' for h, n in hosts.most_common())})" if hosts else ""
+                flag = "  <-- 0 results: possible failure (blocked results are omitted)" if count == 0 else ""
+                print(f"    web_search {query!r}: {count} results{by_domain}{flag}")
+        else:
+            url = call["input"].get("url")
+            if result is None:
+                print(f"    web_fetch {url}: NO RESULT EVENT")
+            elif result.get("is_error"):
+                print(f"    web_fetch {url}: ERROR {error_code(result.get('content'))}")
+            else:
+                print(f"    web_fetch {url}: success")
+
+
+def final_message(events: list[dict]) -> str:
+    replies = [text_of(e.get("content")) for e in events if e["type"] == "agent.message"]
+    return replies[-1].strip() if replies else ""
+
+
 def summarize(threads: list[dict]) -> None:
     for entry in threads:
         thread, events = entry["thread"], entry["events"]
         print(f"\n  [{thread_label(thread)}] status={thread['status']} events={len(events)}")
-        results = {e["tool_use_id"]: e for e in events if e["type"] == "agent.tool_result"}
-        calls = [e for e in events if e["type"] == "agent.tool_use" and e["name"] in ("web_search", "web_fetch")]
-        if not calls:
-            print("    no web_search or web_fetch calls")
-        for call in calls:
-            result = results.get(call["id"])
-            if call["name"] == "web_search":
-                query = call["input"].get("query")
-                if result is None:
-                    print(f"    web_search {query!r}: NO RESULT EVENT")
-                elif result.get("is_error"):
-                    print(f"    web_search {query!r}: ERROR {error_code(result.get('content'))}")
-                else:
-                    hosts = Counter(
-                        urlparse(b.get("source", "")).netloc or "unknown"
-                        for b in result.get("content") or []
-                        if b.get("type") == "search_result"
-                    )
-                    count = sum(hosts.values())
-                    by_domain = f" ({', '.join(f'{h}: {n}' for h, n in hosts.most_common())})" if hosts else ""
-                    flag = "  <-- 0 results: possible failure (blocked results are omitted)" if count == 0 else ""
-                    print(f"    web_search {query!r}: {count} results{by_domain}{flag}")
-            else:
-                url = call["input"].get("url")
-                if result is None:
-                    print(f"    web_fetch {url}: NO RESULT EVENT")
-                elif result.get("is_error"):
-                    print(f"    web_fetch {url}: ERROR {error_code(result.get('content'))}")
-                else:
-                    print(f"    web_fetch {url}: success")
-        replies = [text_of(e.get("content")) for e in events if e["type"] == "agent.message"]
-        if replies and replies[-1].strip():
+        print_tool_calls(events)
+        message = final_message(events)
+        if message:
             print("    final message:")
-            for line in replies[-1].strip().splitlines():
+            for line in message.splitlines():
                 print(f"      {line}")
+
+
+def report(run: dict) -> None:
+    """Coordinator's final output, each subagent thread's searches and fetches, then cost and time."""
+    primary = [entry for entry in run["threads"] if entry["thread"].get("parent_thread_id") is None]
+    children = [entry for entry in run["threads"] if entry["thread"].get("parent_thread_id") is not None]
+    print("\n  coordinator final output:")
+    for entry in primary:
+        for line in (final_message(entry["events"]) or "(no message)").splitlines():
+            print(f"    {line}")
+    if not children:
+        print("\n  no subagent threads")
+    for entry in children:
+        print(f"\n  [{thread_label(entry['thread'])}] status={entry['thread']['status']}")
+        print_tool_calls(entry["events"])
+    usage = run["session"].get("usage") or {}
+    cost = (usage.get("list_cost") or {}).get("amount")
+    elapsed = (datetime.fromisoformat(run["ended_at"]) - datetime.fromisoformat(run["started_at"])).total_seconds()
+    print(f"\n  list cost: {cost} cents")
+    print(f"  elapsed: {elapsed:.0f}s")
 
 
 def run_session(
@@ -222,25 +261,20 @@ def run_session(
     session = settle(client, session.id)
     threads = collect_threads(client, session.id)
 
+    run = {
+        "label": label,
+        "session_id": session.id,
+        "agent_id": agent_id,
+        "message": message,
+        "started_at": started_at.isoformat(),
+        "ended_at": ended_at.isoformat(),
+        "stop_event": stop_event.to_dict(mode="json"),
+        "session": session.to_dict(mode="json"),
+        "threads": threads,
+    }
     RUNS_DIR.mkdir(exist_ok=True)
     out = RUNS_DIR / f"{started_at.strftime('%Y%m%dT%H%M%SZ')}_session_{label.lower()}.json"
-    out.write_text(
-        json.dumps(
-            {
-                "label": label,
-                "session_id": session.id,
-                "agent_id": agent_id,
-                "message": message,
-                "started_at": started_at.isoformat(),
-                "ended_at": ended_at.isoformat(),
-                "stop_event": stop_event.to_dict(mode="json"),
-                "session": session.to_dict(mode="json"),
-                "threads": threads,
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+    out.write_text(json.dumps(run, indent=2) + "\n")
 
     stop = getattr(stop_event, "stop_reason", None)
     cost = session.usage.list_cost.amount if session.usage and session.usage.list_cost else None
@@ -250,7 +284,10 @@ def run_session(
     print(f"  duration: {(ended_at - started_at).total_seconds():.0f}s, {len(threads)} threads")
     print(f"  subagent threads created: {subagent_threads}")
     print(f"  saved {out.relative_to(ROOT)}")
-    summarize(threads)
+    if label.lower() in REPORTED:
+        report(run)
+    else:
+        summarize(threads)
 
 
 def main() -> None:
@@ -266,7 +303,10 @@ def main() -> None:
         for path in args.summarize:
             run = json.loads(Path(path).read_text())
             print(f"\n=== {path} ({run['session_id']}) ===")
-            summarize(run["threads"])
+            if run["label"].lower() in REPORTED:
+                report(run)
+            else:
+                summarize(run["threads"])
         return
 
     load_dotenv(ROOT / ".env")
