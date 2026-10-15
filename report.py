@@ -19,6 +19,12 @@ BANNED_PHRASES = (
     "is a fact that",
     "fact-check:",
     "the verdict",
+    "runs counter to",
+    "run counter to",
+    "contradicts the claim",
+    "supports the claim",
+    "refutes the claim",
+    "corroborates the claim",
 )
 
 # Single words banned on word boundaries. true, false, confirmed and proven are left out on

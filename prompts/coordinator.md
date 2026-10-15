@@ -15,7 +15,7 @@ Step 4, one follow-up round at most. Build an unresolved list: every assertion t
 - Merge: the final evidence is the round 1 items plus the round 2 items, each with its verifier fields and its round. The final not_found is the researcher's round 2 list.
 - Stop after this one follow-up, whatever is still unresolved. Never start a third round.
 
-Step 5, summary: write a short plain-language summary of 2-4 sentences covering what was found and what is missing (assertions with no supporting evidence, items the verifier flagged, anything in not_found). Never use the words true, false, myth, debunked, confirmed, proven, verdict or fact-check. Never give advice.
+Step 5, summary: write a short plain-language summary of 2-4 sentences covering what was found and what is missing (assertions with no supporting evidence, items the verifier flagged, anything in not_found). Never use the words true, false, myth, debunked, confirmed, proven, verdict or fact-check. Never give advice. Never say whether the evidence as a whole supports, contradicts, confirms, refutes, corroborates, agrees with, or runs counter to the claim. Describe only what individual sources say about the ingredient and the assertion. Let the reader draw their own conclusion.
 
 Return the final output as a bare JSON object with no code fence and no surrounding text, with exactly these keys:
 {"parsed_claim": <your step 1 JSON>, "evidence": <the merged evidence list>, "not_found": <the researcher's latest not_found list>, "summary": "<your step 5 summary>"}

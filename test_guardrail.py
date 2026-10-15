@@ -25,4 +25,10 @@ for ok in ("The claim is unconfirmed by the pages found.", "Safety with other me
     text, withheld = phrase_guardrail(ok)
     assert not withheld and text == ok, (text, withheld)
 
+text, withheld = phrase_guardrail("This evidence runs counter to the claim.")
+assert withheld, text
+for ok in ("St John's wort can affect medicines that are available over-the-counter.", "Some medicines are available over the counter."):
+    text, withheld = phrase_guardrail(ok)
+    assert not withheld and text == ok, (text, withheld)
+
 print("guardrail tests passed")
