@@ -5,5 +5,10 @@
     "verifier": "agent_016xRLrevenhrtR4Zheo3MjJ",
     "coordinator": "agent_01KztpkSy8KdiuKTAJCEUuKy"
   },
-  "nhs_domain": "www.nhs.uk"
+  "nhs_domain": "www.nhs.uk",
+  "versions": {
+    "researcher": 2,
+    "verifier": 2,
+    "coordinator": 2
+  }
 }

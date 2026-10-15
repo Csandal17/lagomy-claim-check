@@ -1,0 +1,20 @@
+# Lagomy Claim Check
+
+Prototype that checks a published supplement claim against UK sources, built on Claude Managed Agents (Python SDK beta, `uv run python ...`). A coordinator parses the claim into labelled assertions and delegates to a researcher (web_search + web_fetch), whose citations a verifier (web_fetch only) re-fetches and checks. It never gives advice or says a claim is true or false.
+
+## Files
+- `setup_agents.py` — one-time creation of the environment and the three agents. Refuses to run if `agent_ids.json` exists; never re-run to change agents.
+- `agent_ids.json` — environment ID, agent IDs, NHS domain in use, current agent versions.
+- `prompts/{researcher,verifier,coordinator}.md` — the agents' system prompts (source of truth).
+- `update_agents.py` — applies changed prompts to the agents, then re-pins the coordinator's subagents to their new versions and saves versions to `agent_ids.json`.
+- `checks.py` — named test sessions (`a`, `b`, `bnf`, `parse`, `personal`), each with a budget; saves every thread's events to `runs/` and prints a tool summary. `--summarize runs/<file>.json` re-prints a saved run without starting a session.
+- `runs/` — session event logs, gitignored.
+
+## Rules
+- Use `www.nhs.uk`, not `nhs.uk`: the API rejects `nhs.uk` as a public suffix in `allowed_domains`.
+- Sources are www.nhs.uk and nice.org.uk only. bnf.nice.org.uk pages can't be fetched (`url_not_accessible`), so never cite BNF.
+- Agents cite only text from pages they actually fetched, never search snippets. NICE fetches can return only part of a page.
+- Change prompts by editing `prompts/` and running `update_agents.py`. Updating an agent doesn't move the coordinator's pinned subagent versions; the script does that.
+- No agent gets bash or file tools: every toolset uses `default_config: {"enabled": false}` and turns on only the web tools it needs, each restricted with `allowed_domains`.
+- Update agents in place by ID; don't create new ones.
+- Give every test session a budget (`max_list_cost` in whole US cents as a string).
