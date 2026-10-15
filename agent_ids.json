@@ -9,6 +9,6 @@
   "versions": {
     "researcher": 5,
     "verifier": 5,
-    "coordinator": 8
+    "coordinator": 9
   }
 }
