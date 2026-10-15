@@ -1,6 +1,6 @@
 """Tool checks against the agents in agent_ids.json.
 
-Run with: uv run python checks.py [a] [b] [bnf] [parse] [personal] [research] [verify1] [verify] [handoff]   (default: a b)
+Run with: uv run python checks.py [a] [b] [bnf] [parse] [personal] [research] [verify1] [verify] [handoff] [handoff_test]   (default: a b)
 Re-print a saved run's summary: uv run python checks.py --summarize runs/<file>.json
 
 Session a (checks 1 and 3): the coordinator asks the researcher to search and
@@ -18,6 +18,10 @@ Session verify: the full pipeline (steps 1-3) on the demo claim; same report as 
 
 Session handoff: steps 1-4 on the demo claim (one follow-up round at most). Also prints how many
 messages the researcher's thread received and what is still unresolved after round 2.
+
+Session handoff_test: same report as handoff, on a claim built to leave something unresolved
+(Echinacea). Also prints the exact follow-up message(s) sent to the researcher and the assertion
+IDs they name.
 
 Each session gets its own budget. After it goes idle, every thread's events
 are saved to runs/<timestamp>_session_<name>.json and a per-thread tool summary
@@ -98,6 +102,11 @@ SESSIONS = {
         "300",
         "St John's wort is natural, so it's safe to take with other medicines.",
     ),
+    "handoff_test": (
+        "coordinator",
+        "150",
+        "Echinacea prevents colds and is safe for everyone to take.",
+    ),
     "research": (
         "coordinator",
         "150",
@@ -106,7 +115,7 @@ SESSIONS = {
 }
 
 # Sessions printed with report() instead of the default summary.
-REPORTED = {"research", "verify", "handoff"}
+REPORTED = {"research", "verify", "handoff", "handoff_test"}
 
 KNOWN_ERROR_CODES = (
     "url_not_allowed",
@@ -272,7 +281,7 @@ def report(run: dict) -> None:
     for entry in children:
         print(f"\n  [{thread_label(entry['thread'])}] status={entry['thread']['status']}")
         print_tool_calls(entry["events"])
-    if run["label"].lower() == "handoff":
+    if run["label"].lower() in ("handoff", "handoff_test"):
         report_handoff(run, children)
     usage = run["session"].get("usage") or {}
     cost = (usage.get("list_cost") or {}).get("amount")
@@ -283,6 +292,7 @@ def report(run: dict) -> None:
 
 def report_handoff(run: dict, children: list[dict]) -> None:
     """Researcher message count (expect 2) and what is still unresolved after round 2."""
+    followups: list[str] = []
     for entry in children:
         if entry["thread"]["agent"].get("name") == "researcher":
             messages = [
@@ -293,12 +303,21 @@ def report_handoff(run: dict, children: list[dict]) -> None:
             print(f"\n  messages sent to the researcher thread: {len(messages)} (expect 2 only if a follow-up was needed)")
             for number, text in enumerate(messages, 1):
                 print(f"    {number}. {text[:100]!r}")
+            followups = messages[1:]
             print(f"  third message sent: {'YES - cap broken' if len(messages) > 2 else 'no'}")
     try:
         out = get_final_output_from_run(run)
     except ValueError as err:
         print(f"  cannot read final output: {err}")
         return
+    print("\n  follow-up message(s) to the researcher (exact text):")
+    if not followups:
+        print("    none sent")
+    for text in followups:
+        for line in text.splitlines():
+            print(f"    | {line}")
+        named = [a["id"] for a in out["parsed_claim"]["assertions"] if re.search(rf"\b{re.escape(a['id'])}\b", text)]
+        print(f"    assertions named as unresolved: {named or 'none found by id'}")
     unresolved = [
         f"{e['assertion_id']} round {e.get('round')} {e['source_url']}: supports={e.get('supports_statement')} "
         f"addresses={e.get('addresses_the_claim')}"
