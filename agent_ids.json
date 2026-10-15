@@ -1,0 +1,9 @@
+{
+  "environment_id": "env_015FrfExG2Yuc27ooxwaXMkk",
+  "agents": {
+    "researcher": "agent_01NViRT7wM2fjjeB25M64eMh",
+    "verifier": "agent_016xRLrevenhrtR4Zheo3MjJ",
+    "coordinator": "agent_01KztpkSy8KdiuKTAJCEUuKy"
+  },
+  "nhs_domain": "www.nhs.uk"
+}
