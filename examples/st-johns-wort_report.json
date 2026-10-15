@@ -1,0 +1,93 @@
+{
+  "summary": {
+    "text": "NHS pages say that herbal remedies marketed as \"natural\" do not necessarily mean they're safe, and that St John's wort products vary in active ingredients and are not known for sure to be safe in pregnancy or breastfeeding. Other NHS pages name St John's wort as something that may not mix well with, or should not be used alongside, several medicines, including sertraline, warfarin, atorvastatin, clopidogrel, apixaban, HRT tablets and capsules, and the contraceptive pill. The verifier flagged two items from a general NHS herbal medicines page because it discusses herbal medicines as a group and never names St John's wort. No NICE page was found, and the researcher also reported that one NHS page, for phenytoin, is no longer available.",
+    "withheld": false
+  },
+  "verified_statements": [
+    {
+      "text": "Herbal remedies such as St John's wort are often marketed as \"natural\", but this does not necessarily mean they're safe. The quality, purity and ingredients cannot always be guaranteed, and they may cause unpleasant side effects.",
+      "source_url": "https://www.nhs.uk/medicines/hormone-replacement-therapy-hrt/alternatives-to-hormone-replacement-therapy-hrt/herbal-remedies-and-complementary-medicines-for-menopause-symptoms/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "St John's wort is a herbal treatment that some people take for depression. There's some evidence that it may help less severe depression, but it's not recommended by doctors, because the amount of active ingredients varies among individual brands and batches, so you can never be sure what sort of effect it'll have on you.",
+      "source_url": "https://www.nhs.uk/mental-health/conditions/depression-in-adults/treatment/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "You should not take St John's wort if you're pregnant or breastfeeding, as we do not know for sure that it's safe.",
+      "source_url": "https://www.nhs.uk/mental-health/conditions/depression-in-adults/treatment/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "Taking St John's wort with other medicines, such as anticonvulsants, anticoagulants, antidepressants and the contraceptive pill, can also cause serious problems. St John's wort can interact with the contraceptive pill, reducing its effectiveness.",
+      "source_url": "https://www.nhs.uk/mental-health/conditions/depression-in-adults/treatment/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "Some herbal remedies (especially St John's wort) may cause serious side effects if they're taken with other medicines.",
+      "source_url": "https://www.nhs.uk/medicines/hormone-replacement-therapy-hrt/alternatives-to-hormone-replacement-therapy-hrt/herbal-remedies-and-complementary-medicines-for-menopause-symptoms/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "Taking some antidepressants with alcohol, some foods or some other medicines can cause side effects and is not recommended. Things that can cause problems include St John's wort, a herbal remedy sometimes taken for mild depression.",
+      "source_url": "https://www.nhs.uk/medicines/antidepressants/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "Do not use the herbal supplement St John's wort when taking sertraline.",
+      "source_url": "https://www.nhs.uk/medicines/sertraline/taking-sertraline-with-other-medicines-and-herbal-supplements/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "Medicines that may not mix well with atorvastatin include St John's wort, a herbal supplement.",
+      "source_url": "https://www.nhs.uk/medicines/atorvastatin/taking-atorvastatin-with-other-medicines-and-herbal-supplements/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "St John's wort may stop HRT tablets and capsules from working as well. HRT patches will be less affected by this. Any herbal product may affect other medicines you're taking, so it's important to check with your doctor or pharmacist before starting to take them.",
+      "source_url": "https://www.nhs.uk/medicines/hormone-replacement-therapy-hrt/continuous-combined-hormone-replacement-therapy-hrt-tablets-capsules-and-patches/taking-continuous-combined-hrt-with-other-medicines-and-herbal-supplements/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "Herbal remedies that are sometimes taken for menopause symptoms include St John's wort. These products are often marketed as \"natural\", but this does not necessarily mean they're safe. The quality, purity and ingredients cannot always be guaranteed, and they may cause unpleasant side effects.",
+      "source_url": "https://www.nhs.uk/medicines/hormone-replacement-therapy-hrt/alternatives-to-hormone-replacement-therapy-hrt/herbal-remedies-and-complementary-medicines-for-menopause-symptoms/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "Do not take the herbal remedy St John's wort or vitamin K supplements while you're taking warfarin.",
+      "source_url": "https://www.nhs.uk/medicines/warfarin/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "St John's wort (used for depression) can increase the levels of clopidogrel in your blood. This can increase your risk of bleeding.",
+      "source_url": "https://www.nhs.uk/medicines/clopidogrel/taking-clopidogrel-with-other-medicines-and-herbal-supplements/",
+      "source_authority": "NHS"
+    },
+    {
+      "text": "Medicines, remedies and supplements that may not mix well with apixaban include the herbal remedy for low mood, St John's Wort.",
+      "source_url": "https://www.nhs.uk/medicines/apixaban/",
+      "source_authority": "NHS"
+    }
+  ],
+  "flagged_statements": [
+    {
+      "text": "Not all herbal medicines or complementary therapies are safe or suitable for everybody. Herbal medicines and complementary therapies are not tested in the same way as standard medicines to see how well they work.",
+      "source_url": "https://www.nhs.uk/tests-and-treatments/herbal-medicines-and-complementary-therapies/",
+      "reason": "Both sentences appear on the page, but it discusses herbal medicines as a category and never names St John's wort."
+    },
+    {
+      "text": "Some medicines do not mix well with herbal medicines, including statins, antidepressants, medicines for diabetes, medicines for high blood pressure, blood thinning medicine such as warfarin, and hormonal contraception such as the combined pill. If you're taking any of these medicines, it may cause harmful effects or stop your medicine working if you take a herbal medicine as well. Always check first with a pharmacist before taking a herbal medicine, if you're already taking other medicine.",
+      "source_url": "https://www.nhs.uk/tests-and-treatments/herbal-medicines-and-complementary-therapies/",
+      "reason": "The page lists statins, antidepressants, diabetes and blood pressure medicines, warfarin and the combined pill as not mixing well with herbal medicines and says to check with a pharmacist, but it covers herbal medicines as a category and does not name St John's wort."
+    }
+  ],
+  "silent_on": [
+    "A NICE page naming St John's wort in connection with safety or interactions: my searches returned only NHS pages, so no NICE page was fetched or cited."
+  ],
+  "limitations": [
+    "Only NHS and NICE sources were searched; BNF pages couldn't be fetched today.",
+    "At most one follow-up round was run.",
+    "This is not medical advice and makes no ruling on whether the claim is true."
+  ]
+}
