@@ -8,6 +8,8 @@ Prototype that checks a published supplement claim against UK sources, built on 
 - `prompts/{researcher,verifier,coordinator}.md` — the agents' system prompts (source of truth).
 - `update_agents.py` — applies changed prompts to the agents, then re-pins the coordinator's subagents to their new versions and saves versions to `agent_ids.json`.
 - `checks.py` — named test sessions (`a`, `b`, `bnf`, `parse`, `personal`), each with a budget; saves every thread's events to `runs/` and prints a tool summary. `--summarize runs/<file>.json` re-prints a saved run without starting a session.
+- `run_output.py` — `get_final_output(run_file)`: the coordinator's final JSON from a saved run.
+- `url_check.py` — `uv run python url_check.py <run_file>` flags cited `source_url`s that no agent successfully fetched in the run; exit 1 if any. `test_planted_citation.py` plants a fake citation and confirms it is flagged.
 - `runs/` — session event logs, gitignored.
 
 ## Rules
@@ -19,3 +21,4 @@ Prototype that checks a published supplement claim against UK sources, built on 
 - Update agents in place by ID; don't create new ones.
 - Give every test session a budget (`max_list_cost` in whole US cents as a string).
 - Keep each evidence `source_url` exactly as returned by the fetch, even across a redirect or canonical change. Never substitute the redirect target or canonical URL; it must match a URL the agent actually fetched.
+- Any code reading the coordinator's output must use `get_final_output`, never the last message directly: the coordinator may send narration text before its JSON.
