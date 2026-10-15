@@ -18,7 +18,11 @@ def get_final_output(run_file: str | Path) -> dict:
     with the keys parsed_claim, evidence and not_found. Raises ValueError,
     naming the run file, if none does.
     """
-    run = json.loads(Path(run_file).read_text())
+    return get_final_output_from_run(json.loads(Path(run_file).read_text()), run_file)
+
+
+def get_final_output_from_run(run: dict, run_file: str | Path = "run") -> dict:
+    """Same as get_final_output, for a run dict already in memory."""
     primary = [t for t in run["threads"] if t["thread"].get("parent_thread_id") is None]
     for thread in primary:
         for event in reversed(thread["events"]):

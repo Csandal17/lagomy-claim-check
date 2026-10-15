@@ -1,6 +1,6 @@
 """Tool checks against the agents in agent_ids.json.
 
-Run with: uv run python checks.py [a] [b] [bnf] [parse] [personal] [research] [verify1] [verify]   (default: a b)
+Run with: uv run python checks.py [a] [b] [bnf] [parse] [personal] [research] [verify1] [verify] [handoff]   (default: a b)
 Re-print a saved run's summary: uv run python checks.py --summarize runs/<file>.json
 
 Session a (checks 1 and 3): the coordinator asks the researcher to search and
@@ -15,6 +15,9 @@ coordinator's final output, each subagent thread's searches and fetches, then co
 
 Session verify1: the verifier is sent one fetched URL with a false statement (no researcher).
 Session verify: the full pipeline (steps 1-3) on the demo claim; same report as research.
+
+Session handoff: steps 1-4 on the demo claim (one follow-up round at most). Also prints how many
+messages the researcher's thread received and what is still unresolved after round 2.
 
 Each session gets its own budget. After it goes idle, every thread's events
 are saved to runs/<timestamp>_session_<name>.json and a per-thread tool summary
@@ -32,6 +35,8 @@ from urllib.parse import urlparse
 
 import anthropic
 from dotenv import load_dotenv
+
+from run_output import get_final_output_from_run
 
 ROOT = Path(__file__).parent
 IDS_FILE = ROOT / "agent_ids.json"
@@ -88,6 +93,11 @@ SESSIONS = {
         "250",
         "St John's wort is natural, so it's safe to take with other medicines.",
     ),
+    "handoff": (
+        "coordinator",
+        "300",
+        "St John's wort is natural, so it's safe to take with other medicines.",
+    ),
     "research": (
         "coordinator",
         "150",
@@ -96,7 +106,7 @@ SESSIONS = {
 }
 
 # Sessions printed with report() instead of the default summary.
-REPORTED = {"research", "verify"}
+REPORTED = {"research", "verify", "handoff"}
 
 KNOWN_ERROR_CODES = (
     "url_not_allowed",
@@ -262,11 +272,52 @@ def report(run: dict) -> None:
     for entry in children:
         print(f"\n  [{thread_label(entry['thread'])}] status={entry['thread']['status']}")
         print_tool_calls(entry["events"])
+    if run["label"].lower() == "handoff":
+        report_handoff(run, children)
     usage = run["session"].get("usage") or {}
     cost = (usage.get("list_cost") or {}).get("amount")
     elapsed = (datetime.fromisoformat(run["ended_at"]) - datetime.fromisoformat(run["started_at"])).total_seconds()
     print(f"\n  list cost: {cost} cents")
     print(f"  elapsed: {elapsed:.0f}s")
+
+
+def report_handoff(run: dict, children: list[dict]) -> None:
+    """Researcher message count (expect 2) and what is still unresolved after round 2."""
+    for entry in children:
+        if entry["thread"]["agent"].get("name") == "researcher":
+            messages = [
+                text_of(e.get("content")).strip()
+                for e in entry["events"]
+                if e["type"] == "agent.thread_message_received"
+            ]
+            print(f"\n  messages sent to the researcher thread: {len(messages)} (expect 2 only if a follow-up was needed)")
+            for number, text in enumerate(messages, 1):
+                print(f"    {number}. {text[:100]!r}")
+            print(f"  third message sent: {'YES - cap broken' if len(messages) > 2 else 'no'}")
+    try:
+        out = get_final_output_from_run(run)
+    except ValueError as err:
+        print(f"  cannot read final output: {err}")
+        return
+    unresolved = [
+        f"{e['assertion_id']} round {e.get('round')} {e['source_url']}: supports={e.get('supports_statement')} "
+        f"addresses={e.get('addresses_the_claim')}"
+        for e in out["evidence"]
+        if e.get("supports_statement") != "yes" or e.get("addresses_the_claim") != "yes"
+    ]
+    covered = {e["assertion_id"] for e in out["evidence"]}
+    uncovered = [a["id"] for a in out["parsed_claim"]["assertions"] if a["id"] not in covered]
+    print("  still unresolved after round 2:")
+    for line in unresolved:
+        print(f"    failed verification: {line}")
+    for a in uncovered:
+        print(f"    no evidence for assertion {a}")
+    for item in out["not_found"]:
+        print(f"    not_found: {item}")
+    if not (unresolved or uncovered or out["not_found"]):
+        print("    nothing")
+    rounds = Counter(e.get("round") for e in out["evidence"])
+    print(f"  evidence items by round: {dict(rounds)}")
 
 
 def run_session(
