@@ -221,3 +221,7 @@ __marimo__/
 
 # Tool-check run logs
 runs/
+
+# Claim watcher data (keep the README)
+claims/*
+!claims/README.md

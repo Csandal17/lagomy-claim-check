@@ -31,22 +31,17 @@ is printed. Nothing here changes the agents.
 import argparse
 import json
 import re
-import time
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
 import anthropic
 from dotenv import load_dotenv
 
+from pipeline import IDS_FILE, ROOT, run_message_session
 from run_output import get_final_output_from_run
 
-ROOT = Path(__file__).parent
-IDS_FILE = ROOT / "agent_ids.json"
-RUNS_DIR = ROOT / "runs"
-
-DEADLINE_SECONDS = 15 * 60
 
 # name -> (agent key in agent_ids.json, budget in US cents, message)
 SESSIONS = {
@@ -127,74 +122,6 @@ KNOWN_ERROR_CODES = (
     "invalid_input",
     "unavailable",
 )
-
-
-def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def is_terminal(event) -> bool:
-    if event.type == "session.status_terminated":
-        return True
-    return event.type == "session.status_idle" and event.stop_reason.type != "requires_action"
-
-
-def wait_until_idle(client: anthropic.Anthropic, session_id: str, message: str):
-    """Send the message and block until the session stops. Returns the stopping event."""
-    seen: set[str] = set()
-    sent = False
-    deadline = time.monotonic() + DEADLINE_SECONDS
-    while True:
-        with client.beta.sessions.events.stream(session_id) as stream:
-            if not sent:
-                client.beta.sessions.events.send(
-                    session_id,
-                    events=[{"type": "user.message", "content": [{"type": "text", "text": message}]}],
-                )
-                sent = True
-            else:
-                # Reconnected: SSE doesn't replay, so catch up from history first.
-                for event in client.beta.sessions.events.list(session_id, order="asc"):
-                    seen.add(event.id)
-                    if is_terminal(event):
-                        return event
-            for event in stream:
-                if event.id not in seen:
-                    seen.add(event.id)
-                    if event.type == "session.thread_created":
-                        print(f"  thread created: {event.agent_name}")
-                    elif event.type == "session.status_idle" and event.stop_reason.type == "requires_action":
-                        print("  warning: session is waiting on requires_action (no tool should need approval)")
-                if is_terminal(event):
-                    return event
-                if time.monotonic() > deadline:
-                    print("  deadline passed - interrupting the session")
-                    client.beta.sessions.events.send(session_id, events=[{"type": "user.interrupt"}])
-                    deadline = float("inf")
-        print("  stream closed before the session went idle - reconnecting")
-
-
-def settle(client: anthropic.Anthropic, session_id: str):
-    # The stream reports idle slightly before the session's stored status does.
-    for _ in range(25):
-        session = client.beta.sessions.retrieve(session_id)
-        if session.status != "running":
-            return session
-        time.sleep(0.2)
-    return session
-
-
-def collect_threads(client: anthropic.Anthropic, session_id: str) -> list[dict]:
-    threads = []
-    for thread in client.beta.sessions.threads.list(session_id):
-        events = [
-            event.to_dict(mode="json")
-            for event in client.beta.sessions.threads.events.list(thread.id, session_id=session_id)
-        ]
-        # This endpoint has no order parameter; ISO timestamps sort correctly as strings.
-        events.sort(key=lambda event: event.get("processed_at") or "")
-        threads.append({"thread": thread.to_dict(mode="json"), "events": events})
-    return threads
 
 
 def thread_label(thread: dict) -> str:
@@ -348,33 +275,14 @@ def run_session(
     client, label: str, agent_id: str, environment_id: str, budget_cents: str, message: str
 ) -> None:
     print(f"\n=== Session {label} ===")
-    budget = {"type": "limit", "max_list_cost": {"amount": budget_cents, "currency": "USD"}}
-    started_at = now_utc()
-    session = client.beta.sessions.create(agent=agent_id, environment_id=environment_id, budget=budget)
-    print(f"  session {session.id} (agent {agent_id})")
-    stop_event = wait_until_idle(client, session.id, message)
-    ended_at = now_utc()
-    session = settle(client, session.id)
-    threads = collect_threads(client, session.id)
-
-    run = {
-        "label": label,
-        "session_id": session.id,
-        "agent_id": agent_id,
-        "message": message,
-        "started_at": started_at.isoformat(),
-        "ended_at": ended_at.isoformat(),
-        "stop_event": stop_event.to_dict(mode="json"),
-        "session": session.to_dict(mode="json"),
-        "threads": threads,
-    }
-    RUNS_DIR.mkdir(exist_ok=True)
-    out = RUNS_DIR / f"{started_at.strftime('%Y%m%dT%H%M%SZ')}_session_{label.lower()}.json"
-    out.write_text(json.dumps(run, indent=2) + "\n")
-
-    stop = getattr(stop_event, "stop_reason", None)
-    cost = session.usage.list_cost.amount if session.usage and session.usage.list_cost else None
-    print(f"  stopped: {stop_event.type} {stop.type if stop else ''}".rstrip())
+    run, out = run_message_session(client, label, agent_id, environment_id, budget_cents, message)
+    session, threads, stop_event = run["session"], run["threads"], run["stop_event"]
+    ended_at = datetime.fromisoformat(run["ended_at"])
+    started_at = datetime.fromisoformat(run["started_at"])
+    usage = session.get("usage") or {}
+    cost = (usage.get("list_cost") or {}).get("amount")
+    stop = stop_event.get("stop_reason")
+    print(f"  stopped: {stop_event['type']} {stop['type'] if stop else ''}".rstrip())
     print(f"  list cost: {cost} cents of {budget_cents}")
     subagent_threads = sum(1 for entry in threads if entry["thread"].get("parent_thread_id") is not None)
     print(f"  duration: {(ended_at - started_at).total_seconds():.0f}s, {len(threads)} threads")
