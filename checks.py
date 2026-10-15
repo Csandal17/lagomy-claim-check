@@ -295,16 +295,21 @@ def report_handoff(run: dict, children: list[dict]) -> None:
     followups: list[str] = []
     for entry in children:
         if entry["thread"]["agent"].get("name") == "researcher":
-            messages = [
-                text_of(e.get("content")).strip()
-                for e in entry["events"]
-                if e["type"] == "agent.thread_message_received"
-            ]
-            print(f"\n  messages sent to the researcher thread: {len(messages)} (expect 2 only if a follow-up was needed)")
-            for number, text in enumerate(messages, 1):
-                print(f"    {number}. {text[:100]!r}")
-            followups = messages[1:]
-            print(f"  third message sent: {'YES - cap broken' if len(messages) > 2 else 'no'}")
+            messages: list[str] = []
+            researched: list[bool] = []
+            for e in entry["events"]:
+                if e["type"] == "agent.thread_message_received":
+                    messages.append(text_of(e.get("content")).strip())
+                    researched.append(False)
+                elif e["type"] == "agent.tool_use" and e.get("name") in ("web_search", "web_fetch") and researched:
+                    researched[-1] = True
+            real_rounds = sum(researched)
+            print(f"\n  raw messages sent to the researcher thread: {len(messages)}")
+            print(f"  real research rounds (a search or fetch followed the message): {real_rounds} (expect 2 only if a follow-up was needed)")
+            for number, (text, did) in enumerate(zip(messages, researched), 1):
+                print(f"    {number}. [{'researched' if did else 'no search/fetch'}] {text[:100]!r}")
+            followups = [t for t, did in zip(messages[1:], researched[1:]) if did] or messages[1:]
+            print(f"  cap broken (more than 2 real research rounds): {'YES' if real_rounds > 2 else 'no'}")
     try:
         out = get_final_output_from_run(run)
     except ValueError as err:

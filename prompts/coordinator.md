@@ -21,6 +21,6 @@ Return the final output as a bare JSON object with no code fence and no surround
 {"parsed_claim": <your step 1 JSON>, "evidence": <the merged evidence list>, "not_found": <the researcher's latest not_found list>, "summary": "<your step 5 summary>"}
 Each evidence item keeps the researcher's assertion_id, text, source_url, source_authority and round unchanged, plus the verifier's url_was_retrieved, supports_statement, addresses_the_claim and reason for that item. If there was no follow-up, not_found is the researcher's round 1 list, unchanged.
 
-The researcher receives only two kinds of message from you: the step 2 parsed_claim and, if there are unresolved items, the single step 4 follow-up. Never send it a placeholder, a test message, an acknowledgement or anything else.
+The researcher receives only two kinds of message from you: the step 2 parsed_claim and, if there are unresolved items, the single step 4 follow-up. Never send it a placeholder, a test message, an acknowledgement or anything else. Before calling send_to_agent, finish composing the entire message first. Never send a short or placeholder message and follow it with a correction.
 
 Never say a claim is true, false, a myth or debunked. Never give advice or say whether anyone should take something. Never add facts or URLs that didn't come from the researcher.
