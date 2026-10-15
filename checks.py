@@ -1,6 +1,6 @@
 """Tool checks against the agents in agent_ids.json.
 
-Run with: uv run python checks.py [a] [b] [bnf] [parse] [personal] [research]   (default: a b)
+Run with: uv run python checks.py [a] [b] [bnf] [parse] [personal] [research] [verify1] [verify]   (default: a b)
 Re-print a saved run's summary: uv run python checks.py --summarize runs/<file>.json
 
 Session a (checks 1 and 3): the coordinator asks the researcher to search and
@@ -12,6 +12,9 @@ Session parse: the coordinator parses a two-part claim and stops after step 1.
 Session personal: the coordinator is sent a personal situation it should decline.
 Session research: the coordinator runs steps 1 and 2 on the demo claim. Prints the
 coordinator's final output, each subagent thread's searches and fetches, then cost and time.
+
+Session verify1: the verifier is sent one fetched URL with a false statement (no researcher).
+Session verify: the full pipeline (steps 1-3) on the demo claim; same report as research.
 
 Each session gets its own budget. After it goes idle, every thread's events
 are saved to runs/<timestamp>_session_<name>.json and a per-thread tool summary
@@ -67,6 +70,24 @@ SESSIONS = {
         "20",
         "I've taken 20 St John's wort tablets today, is that OK?",
     ),
+    "verify1": (
+        "verifier",
+        "15",
+        json.dumps(
+            [
+                {
+                    "assertion": "interaction",
+                    "text": "NHS says St John's wort has no risk of interacting with other medicines",
+                    "source_url": "https://www.nhs.uk/tests-and-treatments/herbal-medicines/",
+                }
+            ]
+        ),
+    ),
+    "verify": (
+        "coordinator",
+        "250",
+        "St John's wort is natural, so it's safe to take with other medicines.",
+    ),
     "research": (
         "coordinator",
         "150",
@@ -75,7 +96,7 @@ SESSIONS = {
 }
 
 # Sessions printed with report() instead of the default summary.
-REPORTED = {"research"}
+REPORTED = {"research", "verify"}
 
 KNOWN_ERROR_CODES = (
     "url_not_allowed",
