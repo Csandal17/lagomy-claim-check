@@ -39,7 +39,7 @@ from urllib.parse import urlparse
 import anthropic
 from dotenv import load_dotenv
 
-from pipeline import IDS_FILE, ROOT, run_message_session
+from pipeline import IDS_FILE, ROOT, error_code, run_message_session, text_of
 from run_output import get_final_output_from_run
 
 
@@ -112,37 +112,11 @@ SESSIONS = {
 # Sessions printed with report() instead of the default summary.
 REPORTED = {"research", "verify", "handoff", "handoff_test"}
 
-KNOWN_ERROR_CODES = (
-    "url_not_allowed",
-    "url_not_accessible",
-    "url_too_long",
-    "unsupported_content_type",
-    "too_many_requests",
-    "max_uses_exceeded",
-    "invalid_input",
-    "unavailable",
-)
-
 
 def thread_label(thread: dict) -> str:
     agent = thread["agent"]
     role = "primary" if thread.get("parent_thread_id") is None else "child"
     return f"{agent.get('name') or agent.get('type')} ({role}, {thread['id']})"
-
-
-def text_of(content: list[dict] | None) -> str:
-    return " ".join(block.get("text", "") for block in content or [] if block.get("type") == "text")
-
-
-def error_code(content: list[dict] | None) -> str:
-    text = text_of(content)
-    match = re.search(r'error_code"?\s*[:=]\s*"?([a-z_]+)', text)
-    if match:
-        return match.group(1)
-    for code in KNOWN_ERROR_CODES:
-        if code in text:
-            return code
-    return f"unrecognised error: {text[:160]!r}"
 
 
 def print_tool_calls(events: list[dict]) -> None:

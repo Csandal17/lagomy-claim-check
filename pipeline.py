@@ -1,6 +1,8 @@
 """Shared session runner: one coordinator session, one message, wait for idle, save the event log."""
 
 import json
+import re
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +15,18 @@ IDS_FILE = ROOT / "agent_ids.json"
 RUNS_DIR = ROOT / "runs"
 
 DEADLINE_SECONDS = 15 * 60
+STATUS_POLL_SECONDS = 2
+
+KNOWN_ERROR_CODES = (
+    "url_not_allowed",
+    "url_not_accessible",
+    "url_too_long",
+    "unsupported_content_type",
+    "too_many_requests",
+    "max_uses_exceeded",
+    "invalid_input",
+    "unavailable",
+)
 
 
 class PipelineError(Exception):
@@ -21,6 +35,89 @@ class PipelineError(Exception):
     def __init__(self, message: str, session_id: str):
         super().__init__(message)
         self.session_id = session_id
+
+
+class StatusPrinter:
+    """Prints one line per new search, fetch, failure or finished subagent thread while a session runs.
+
+    Read-only: it lists threads and their events from a background thread and never touches the
+    saved run, so the run file is the same with or without it.
+    """
+
+    def __init__(self, client: anthropic.Anthropic, session_id: str):
+        self.client, self.session_id = client, session_id
+        self.threads_seen: set[str] = set()
+        self.events_seen: dict[str, set[str]] = {}
+        self.tool_names: dict[str, str] = {}
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=30)
+        self.poll()  # flush anything that arrived after the last poll
+
+    def _run(self) -> None:
+        while not self._stop.wait(STATUS_POLL_SECONDS):
+            self.poll()
+
+    def poll(self) -> None:
+        try:
+            for thread in self.client.beta.sessions.threads.list(self.session_id):
+                name = thread.agent.name or thread.agent.type
+                primary = thread.parent_thread_id is None
+                if thread.id not in self.threads_seen:
+                    self.threads_seen.add(thread.id)
+                    if not primary:
+                        print(f"  {name} thread started", flush=True)
+                events = [
+                    e.to_dict(mode="json")
+                    for e in self.client.beta.sessions.threads.events.list(thread.id, session_id=self.session_id)
+                ]
+                events.sort(key=lambda e: e.get("processed_at") or "")
+                seen = self.events_seen.setdefault(thread.id, set())
+                for event in events:
+                    if event["id"] in seen:
+                        continue
+                    seen.add(event["id"])
+                    line = self._line(name, primary, event)
+                    if line:
+                        print(f"  {line}", flush=True)
+        except Exception as err:  # status lines are best-effort; never break the run
+            print(f"  (status lines paused: {type(err).__name__})", flush=True)
+
+    def _line(self, name: str, primary: bool, event: dict) -> str | None:
+        kind = event["type"]
+        if kind == "agent.tool_use":
+            self.tool_names[event["id"]] = event["name"]
+            if event["name"] == "web_search":
+                return f"{name}: searching {event['input'].get('query')}"
+            if event["name"] == "web_fetch":
+                return f"{name}: fetching {event['input'].get('url')}"
+        elif kind == "agent.tool_result" and event.get("is_error"):
+            tool = self.tool_names.get(event.get("tool_use_id"), "tool")
+            return f"{name}: {tool} failed ({error_code(event.get('content'))})"
+        elif kind in ("session.thread_status_idle", "session.thread_status_terminated") and not primary:
+            return f"{name} thread finished"
+        return None
+
+
+def text_of(content: list[dict] | None) -> str:
+    return " ".join(block.get("text", "") for block in content or [] if block.get("type") == "text")
+
+
+def error_code(content: list[dict] | None) -> str:
+    text = text_of(content)
+    match = re.search(r'error_code"?\s*[:=]\s*"?([a-z_]+)', text)
+    if match:
+        return match.group(1)
+    for code in KNOWN_ERROR_CODES:
+        if code in text:
+            return code
+    return f"unrecognised error: {text[:160]!r}"
 
 
 def now_utc() -> datetime:
@@ -55,9 +152,7 @@ def wait_until_idle(client: anthropic.Anthropic, session_id: str, message: str):
             for event in stream:
                 if event.id not in seen:
                     seen.add(event.id)
-                    if event.type == "session.thread_created":
-                        print(f"  thread created: {event.agent_name}")
-                    elif event.type == "session.status_idle" and event.stop_reason.type == "requires_action":
+                    if event.type == "session.status_idle" and event.stop_reason.type == "requires_action":
                         print("  warning: session is waiting on requires_action (no tool should need approval)")
                 if is_terminal(event):
                     return event
@@ -99,8 +194,13 @@ def run_message_session(
     started_at = now_utc()
     session = client.beta.sessions.create(agent=agent_id, environment_id=environment_id, budget=budget)
     print(f"  session {session.id} (agent {agent_id})")
+    printer = StatusPrinter(client, session.id)
+    printer.start()
     try:
-        stop_event = wait_until_idle(client, session.id, message)
+        try:
+            stop_event = wait_until_idle(client, session.id, message)
+        finally:
+            printer.stop()
         ended_at = now_utc()
         session = settle(client, session.id)
         threads = collect_threads(client, session.id)
